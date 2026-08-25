@@ -1,18 +1,36 @@
+import re
+import shlex
 import subprocess
 
+CXX = "ez80-clang"
 
-def preprocess(source, flags):
-    cmd = ["ez80-clang", "-E", *flags, source]
+LINEMARK = re.compile(r'^#\s+\d+\s+"([^"]*)"')
 
-    result = subprocess.run(
-        cmd, capture_output=True, text=True
-    )
+def _preprocess(source_file, flags):
+    cmd = [CXX, "-E", *flags, source_file]
 
-    if result.returncode != 0:
-        raise RuntimeError(f'{cmd} failed:\n{result.stderr}')
+    proc = subprocess.run(cmd, capture_output=True, text=True)
 
-    return result.stdout
+    if proc.returncode != 0:
+        raise RuntimeError(f'moddeps: {shlex.join(cmd)}\n{proc.stderr}')
+
+    return proc.stdout
+
+
+def _source_owned_lines(source_file, preprocessed):
+    current_file = source_file
+
+    for line in preprocessed.splitlines():
+        if marker := LINEMARK.match(line):
+            current_file = marker.group(1)
+            continue
+            
+        if current_file == source_file:
+            yield line
 
 
 if __name__ == "__main__":
-    print(preprocess("strata/ok.cpp", []))
+    file = "strata/ok.cpp"
+
+    for line in _source_owned_lines(file, _preprocess(file, [])):
+        print(line)
